@@ -1,0 +1,120 @@
+#!/usr/bin/env python
+"""
+twistr - Wrapper script for `twistd` to reload
+            the server whenever related files change.
+
+usage:
+
+  twistr -n <service>
+
+Example:
+
+  twistr -n threadbare
+
+"""
+
+"""
+twistr currently only watches for changes in *.py files
+in the current directory hierarchy.
+
+twistr watches for file changes with a stupid polling
+loop instead of anything cool like one of many
+file system event APIs.
+
+On the plus side it should be easy to understand and easy
+to change.
+
+"""
+
+
+__version__ = '1.0.0'
+
+
+import atexit
+import fnmatch
+import os
+import signal
+import subprocess
+import stat
+import sys
+import time
+
+
+RUNNER = "twistd"
+PATTERNS = ["*.py",]
+
+
+def checksum_directory(directory):
+    """
+    Walk directory structure and return simple checksum based on
+    file size and modified time.
+
+    """
+    file_checksums = []
+    for dirpath, dirnames, filenames in os.walk(directory,
+                                                topdown=False,
+                                                onerror=None,
+                                                followlinks=False):
+        source_names = [name for pattern in PATTERNS
+                        for name in filenames if fnmatch.fnmatch(name, pattern)]
+        for source_name in source_names:
+            source_path = os.path.join(dirpath, source_name)
+            try:
+                stats = os.stat(source_path)
+            except OSError:
+                # ignore temp files and files we don't
+                # have perms to access
+                continue
+            file_checksums.append(
+                stats[stat.ST_SIZE] + stats[stat.ST_MTIME])
+    return sum(file_checksums)
+
+
+PROCESS = None
+
+
+def shutdown():
+    """
+    Shutdown the server process when this script ends
+    """
+    global PROCESS
+    if PROCESS:
+        os.kill(PROCESS.pid, signal.SIGKILL)
+        PROCESS.wait()
+
+
+atexit.register(shutdown)
+
+
+def main():
+    global PROCESS
+
+    args = " ".join(sys.argv[1:])
+    if not args:
+        print __doc__
+        sys.exit(1)
+
+    command = "%s %s"%(RUNNER, args)
+
+    latest_checksum = checksum_directory(os.curdir)
+    print "Twistr starting with: %s"%(command)
+    print command
+    PROCESS = subprocess.Popen(command.split())
+    try:
+        while (True):
+            checksum = checksum_directory(os.curdir)
+            if checksum != latest_checksum:
+                print "Twistr detected a change and is rerunning tests with: %s"%(command)
+                latest_checksum = checksum
+
+                os.kill(PROCESS.pid, signal.SIGTERM)
+                PROCESS.wait()
+
+                PROCESS = subprocess.Popen(command.split())
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print "Exiting Twistr..."
+
+
+if __name__=="__main__":
+    main()
