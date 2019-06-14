@@ -27,7 +27,7 @@ to change.
 """
 
 
-__version__ = '1.0.0'
+__version__ = "1.0.0"
 
 
 import atexit
@@ -41,7 +41,7 @@ import time
 
 
 RUNNER = "twistd"
-PATTERNS = ["*.py",]
+PATTERNS = ["*.py"]
 
 
 def checksum_directory(directory):
@@ -51,12 +51,15 @@ def checksum_directory(directory):
 
     """
     file_checksums = []
-    for dirpath, dirnames, filenames in os.walk(directory,
-                                                topdown=False,
-                                                onerror=None,
-                                                followlinks=False):
-        source_names = [name for pattern in PATTERNS
-                        for name in filenames if fnmatch.fnmatch(name, pattern)]
+    for dirpath, dirnames, filenames in os.walk(
+        directory, topdown=False, onerror=None, followlinks=False
+    ):
+        source_names = [
+            name
+            for pattern in PATTERNS
+            for name in filenames
+            if fnmatch.fnmatch(name, pattern)
+        ]
         for source_name in source_names:
             source_path = os.path.join(dirpath, source_name)
             try:
@@ -65,8 +68,7 @@ def checksum_directory(directory):
                 # ignore temp files and files we don't
                 # have perms to access
                 continue
-            file_checksums.append(
-                stats[stat.ST_SIZE] + stats[stat.ST_MTIME])
+            file_checksums.append(stats[stat.ST_SIZE] + stats[stat.ST_MTIME])
     return sum(file_checksums)
 
 
@@ -91,20 +93,23 @@ def main():
 
     args = " ".join(sys.argv[1:])
     if not args:
-        print __doc__
+        print(__doc__)
         sys.exit(1)
 
-    command = "%s %s"%(RUNNER, args)
+    command = "%s %s" % (RUNNER, args)
 
     latest_checksum = checksum_directory(os.curdir)
-    print "Twistr starting with: %s"%(command)
-    print command
+    print("Twistr starting with: %s" % (command))
+    print(command)
     PROCESS = subprocess.Popen(command.split())
     try:
-        while (True):
+        while True:
             checksum = checksum_directory(os.curdir)
             if checksum != latest_checksum:
-                print "Twistr detected a change and is rerunning tests with: %s"%(command)
+                print(
+                    "Twistr detected a change and is rerunning tests with: %s"
+                    % (command)
+                )
                 latest_checksum = checksum
 
                 os.kill(PROCESS.pid, signal.SIGTERM)
@@ -113,8 +118,8 @@ def main():
                 PROCESS = subprocess.Popen(command.split())
             time.sleep(1)
     except KeyboardInterrupt:
-        print "Exiting Twistr..."
+        print("Exiting Twistr...")
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
